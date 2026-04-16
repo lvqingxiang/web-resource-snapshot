@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>X 推文截图工具</title>
+  <style>
+    :root {
+      --bg: #08131f;
+      --panel: rgba(8, 20, 31, 0.78);
+      --panel-border: rgba(173, 216, 255, 0.14);
+      --text: #eef6ff;
+      --muted: #9bb7d1;
+      --accent: #6ec1ff;
+      --accent-2: #c7ecff;
+      --danger: #ffb7b7;
+      --success: #98e5b4;
+      --shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+      --radius: 24px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "SF Pro Display", "PingFang SC", "Noto Sans SC", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(60, 128, 185, 0.35), transparent 32%),
+        radial-gradient(circle at top right, rgba(50, 96, 160, 0.24), transparent 28%),
+        linear-gradient(145deg, #07111c 0%, #0d1e2b 52%, #061019 100%);
+      padding: 32px 18px 48px;
+    }
+
+    .shell {
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      margin-bottom: 24px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border: 1px solid rgba(110, 193, 255, 0.26);
+      border-radius: 999px;
+      color: var(--accent-2);
+      background: rgba(16, 41, 61, 0.5);
+      font-size: 13px;
+      letter-spacing: 0.04em;
+    }
+
+    h1 {
+      margin: 18px 0 12px;
+      font-size: clamp(32px, 4vw, 54px);
+      line-height: 1.04;
+      letter-spacing: -0.04em;
+      max-width: 760px;
+    }
+
+    .lead {
+      margin: 0;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
+    }
+
+    .panel {
+      padding: 24px;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 14px;
+      color: var(--accent-2);
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    input[type="url"] {
+      flex: 1;
+      min-width: 240px;
+      padding: 16px 18px;
+      border-radius: 16px;
+      border: 1px solid rgba(126, 177, 214, 0.22);
+      background: rgba(9, 24, 36, 0.88);
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+
+    input[type="url"]:focus {
+      border-color: rgba(110, 193, 255, 0.74);
+      transform: translateY(-1px);
+    }
+
+    button {
+      border: 0;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #74c8ff 0%, #4d92ff 100%);
+      color: #03111d;
+      padding: 16px 20px;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      min-width: 148px;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+      box-shadow: 0 18px 28px rgba(64, 133, 255, 0.25);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 22px 34px rgba(64, 133, 255, 0.3);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .toggle input {
+      margin-top: 4px;
+      accent-color: var(--accent);
+    }
+
+    .status {
+      min-height: 24px;
+      margin-top: 16px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+
+    .status.success {
+      color: var(--success);
+    }
+
+    .tips {
+      display: grid;
+      gap: 14px;
+    }
+
+    .tips h2,
+    .result h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .tips ul {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 14px;
+    }
+
+    .result {
+      padding: 24px;
+    }
+
+    .result-card {
+      display: none;
+      gap: 16px;
+    }
+
+    .result-card.show {
+      display: grid;
+    }
+
+    .preview {
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(173, 216, 255, 0.12);
+      background: rgba(5, 15, 25, 0.9);
+    }
+
+    .preview img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .meta {
+      display: grid;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      word-break: break-word;
+    }
+
+    .meta code {
+      color: var(--text);
+      font-family: "SF Mono", "JetBrains Mono", monospace;
+      font-size: 13px;
+    }
+
+    .meta a {
+      color: var(--accent-2);
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      margin: 0;
+    }
+
+    @media (max-width: 880px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">Desktop Utility</div>
+      <h1>输入一条 X / Twitter 链接，自动生成详情页截图</h1>
+      <p class="lead">
+        截图会直接保存到当前工具文件夹里的 <code>screenshots/</code> 目录。
+        如果某些推文需要登录才能访问，可以勾选“显示浏览器”，在打开的浏览器里完成登录后再截图。
+      </p>
+    </section>
+
+    <section class="grid">
+      <div class="card panel">
+        <label class="label" for="url">推文链接</label>
+        <div class="row">
+          <input id="url" type="url" placeholder="例如 https://x.com/username/status/1234567890" autocomplete="off">
+          <button id="captureBtn">开始截图</button>
+        </div>
+
+        <label class="toggle">
+          <input id="showBrowser" type="checkbox">
+          <span>显示浏览器。如果这条推文需要登录查看，勾选后可以先在可见浏览器里登录 X，再继续截图。</span>
+        </label>
+
+        <div id="status" class="status"></div>
+      </div>
+
+      <aside class="card panel tips">
+        <div>
+          <h2>使用说明</h2>
+          <ul>
+            <li>支持 `x.com`、`twitter.com`、`mobile.twitter.com` 的单条推文链接。</li>
+            <li>默认优先截取推文详情页；如果详情页无法加载，会自动回退到嵌入卡片截图。</li>
+            <li>截图文件会带上推文 ID 和时间戳，方便反复保存不覆盖。</li>
+          </ul>
+        </div>
+        <div>
+          <h2>保存位置</h2>
+          <p class="empty" id="saveHint"></p>
+        </div>
+      </aside>
+    </section>
+
+    <section class="card result" style="margin-top: 22px;">
+      <h2>最近一次截图</h2>
+      <p id="emptyState" class="empty">还没有生成截图。输入链接后，预览会显示在这里。</p>
+      <div id="resultCard" class="result-card">
+        <div class="preview">
+          <img id="previewImage" alt="推文截图预览">
+        </div>
+        <div class="meta">
+          <div>文件名：<code id="fileName"></code></div>
+          <div>保存路径：<code id="savedTo"></code></div>
+          <div>截图模式：<code id="captureMode"></code></div>
+          <div>实际访问：<a id="usedUrl" href="#" target="_blank" rel="noreferrer">打开链接</a></div>
+          <div><a id="openImage" href="#" target="_blank" rel="noreferrer">在新标签页打开图片</a></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const btn = document.getElementById('captureBtn');
+    const input = document.getElementById('url');
+    const showBrowser = document.getElementById('showBrowser');
+    const status = document.getElementById('status');
+    const resultCard = document.getElementById('resultCard');
+    const emptyState = document.getElementById('emptyState');
+    const previewImage = document.getElementById('previewImage');
+    const fileName = document.getElementById('fileName');
+    const savedTo = document.getElementById('savedTo');
+    const captureMode = document.getElementById('captureMode');
+    const usedUrl = document.getElementById('usedUrl');
+    const openImage = document.getElementById('openImage');
+    const saveHint = document.getElementById('saveHint');
+
+    saveHint.textContent = '当前工具文件夹里的 screenshots/ 子目录';
+
+    function setStatus(message, kind = '') {
+      status.textContent = message || '';
+      status.className = 'status' + (kind ? ` ${kind}` : '');
+    }
+
+    async function capture() {
+      const url = input.value.trim();
+      if (!url) {
+        setStatus('请输入推文链接', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      setStatus('正在生成截图，请稍候...', '');
+
+      try {
+        const response = await fetch('/api/capture', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            showBrowser: showBrowser.checked
+          })
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || '截图失败');
+        }
+
+        const previewUrl = `${data.previewUrl}?t=${Date.now()}`;
+        previewImage.src = previewUrl;
+        previewImage.alt = `推文截图 ${data.fileName}`;
+        fileName.textContent = data.fileName;
+        savedTo.textContent = data.savedTo;
+        captureMode.textContent = data.captureMode === 'detail_page' ? '详情页截图' : '嵌入卡片截图';
+        usedUrl.href = data.usedUrl;
+        usedUrl.textContent = data.usedUrl;
+        openImage.href = previewUrl;
+
+        emptyState.style.display = 'none';
+        resultCard.classList.add('show');
+        setStatus(data.message || '截图已保存', 'success');
+      } catch (error) {
+        setStatus(error.message || '截图失败', 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    btn.addEventListener('click', capture);
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        capture();
+      }
+    });
+  </script>
+</body>
+</html>
