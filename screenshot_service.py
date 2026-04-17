@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 import re
 from urllib.parse import urlparse
@@ -290,6 +289,18 @@ def _compute_capture_clip(page, tweet_card):
           const doc = document.documentElement;
           const rootRect = el.getBoundingClientRect();
           const mediaSelector = 'img, svg, video, canvas, picture, iframe';
+          const excludedSelector = [
+            '[data-testid="logged_out_read_replies_pivot"]',
+            '[data-testid="inline_reply_offscreen"]',
+            '[data-testid="tweetTextarea_0"]',
+            '[data-testid="inline_reply_composer"]',
+            '[contenteditable="true"][role="textbox"]',
+            '[role="textbox"]',
+            'form[aria-label*="Reply"]',
+            'form[aria-label*="reply"]',
+            'form[aria-label*="回复"]',
+            'form[aria-label*="回覆"]'
+          ].join(', ');
 
           let left = Infinity;
           let top = Infinity;
@@ -320,6 +331,13 @@ def _compute_capture_clip(page, tweet_card):
             return true;
           };
 
+          const shouldExclude = (node) => {
+            if (!node || !(node instanceof Element)) {
+              return false;
+            }
+            return Boolean(node.closest(excludedSelector));
+          };
+
           const textRects = () => {
             const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
             while (walker.nextNode()) {
@@ -329,6 +347,9 @@ def _compute_capture_clip(page, tweet_card):
               }
               const parent = textNode.parentElement;
               if (!parent || !isVisible(parent)) {
+                continue;
+              }
+              if (shouldExclude(parent)) {
                 continue;
               }
 
@@ -346,10 +367,28 @@ def _compute_capture_clip(page, tweet_card):
             if (!isVisible(node)) {
               continue;
             }
+            if (shouldExclude(node)) {
+              continue;
+            }
             for (const rect of node.getClientRects()) {
               addRect(rect);
             }
           }
+
+          const actionGroups = [...el.querySelectorAll('[role="group"]')]
+            .filter((node) => isVisible(node) && !shouldExclude(node))
+            .map((node) => {
+              const rect = node.getBoundingClientRect();
+              return {
+                top: rect.top + window.scrollY,
+                bottom: rect.bottom + window.scrollY,
+                width: rect.width,
+                height: rect.height,
+              };
+            })
+            .filter((rect) => rect.width > 40 && rect.height > 12);
+
+          const actionBar = actionGroups.sort((a, b) => b.bottom - a.bottom)[0];
 
           if (!Number.isFinite(left)) {
             const rootX = rootRect.left + window.scrollX;
@@ -364,9 +403,10 @@ def _compute_capture_clip(page, tweet_card):
           const x = Math.max(0, Math.floor(left - padding));
           const y = Math.max(0, Math.floor(top - padding));
           const maxRight = Math.max(doc.scrollWidth, right + padding);
-          const maxBottom = Math.max(doc.scrollHeight, bottom + padding);
+          const contentBottom = actionBar ? Math.min(bottom, actionBar.bottom) : bottom;
+          const maxBottom = Math.max(doc.scrollHeight, contentBottom + padding);
           const width = Math.max(1, Math.ceil(Math.min(maxRight, right + padding) - x));
-          const height = Math.max(1, Math.ceil(Math.min(maxBottom, bottom + padding) - y));
+          const height = Math.max(1, Math.ceil(Math.min(maxBottom, contentBottom + padding) - y));
 
           return { x, y, width, height };
         }
@@ -391,10 +431,20 @@ def _capture_detail_snapshot(page, tweet_card, path: Path) -> None:
     )
 
 
-def _build_output_name(screen_name: str, tweet_id: str) -> str:
-    safe_name = re.sub(r"[^a-zA-Z0-9_]+", "_", screen_name).strip("_") or "tweet"
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return f"{safe_name}_{tweet_id}_{timestamp}.png"
+def _build_output_name(detail_url: str, output_dir: Path) -> str:
+    parsed = urlparse(detail_url)
+    host = (parsed.netloc or "x.com").lower()
+    path = parsed.path.strip("/")
+    raw_name = "_".join(part for part in [host, path.replace("/", "_")] if part)
+    safe_name = re.sub(r"[^a-zA-Z0-9._-]+", "_", raw_name).strip("._-") or "tweet"
+
+    candidate = f"{safe_name}.png"
+    sequence = 2
+    while (output_dir / candidate).exists():
+        candidate = f"{safe_name}_{sequence}.png"
+        sequence += 1
+
+    return candidate
 
 
 def capture_tweet_page(
@@ -414,7 +464,7 @@ def capture_tweet_page(
     browser_profile = Path(profile_dir)
     browser_profile.mkdir(parents=True, exist_ok=True)
 
-    file_name = _build_output_name(screen_name, tweet_id)
+    file_name = _build_output_name(normalized_url, output_path)
     saved_to = output_path / file_name
     used_url = ""
     capture_mode = ""
